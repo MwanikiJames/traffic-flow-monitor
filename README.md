@@ -464,12 +464,28 @@
         let cameras = [];
         let isPlaying = true;
         let trafficLayer = true;
+        let trafficLayersGroup;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            initMap();
-            generateMockCameras();
+            // Check if libraries loaded
+            if (typeof lucide === 'undefined') {
+                console.error('Lucide icons failed to load');
+                return;
+            }
+            if (typeof L === 'undefined') {
+                console.error('Leaflet failed to load');
+                return;
+            }
+            
+            try {
+                lucide.createIcons();
+                initMap();
+                generateMockCameras();
+            } catch (error) {
+                console.error('Initialization error:', error);
+                alert('Failed to initialize app. Please check console for details.');
+            }
         });
 
         // Plan Selection
@@ -542,15 +558,17 @@
                 
                 const weight = road.status === 'blocked' ? 6 : 4;
                 
-                L.polyline(road.coords, {
+                const polyline = L.polyline(road.coords, {
                     color: color,
                     weight: weight,
                     opacity: 0.8
-                }).addTo(map).bindPopup(`
+                }).bindPopup(`
                     <div class="font-semibold">${road.name}</div>
                     <div class="text-sm capitalize text-gray-600">Status: ${road.status}</div>
                     <div class="text-xs text-gray-500">Updated 2 mins ago</div>
                 `);
+                
+                trafficLayersGroup.addLayer(polyline);
                 
                 // Add sensor markers every 100m (simulated)
                 for (let i = 0; i < road.coords.length - 1; i++) {
@@ -558,20 +576,24 @@
                     const end = road.coords[i+1];
                     const mid = [(start[0] + end[0])/2, (start[1] + end[1])/2];
                     
-                    L.circleMarker(mid, {
+                    const marker = L.circleMarker(mid, {
                         radius: 6,
                         fillColor: color,
                         color: '#fff',
                         weight: 2,
                         opacity: 1,
                         fillOpacity: 0.8
-                    }).addTo(map).bindPopup(`
+                    }).bindPopup(`
                         <div class="text-xs font-semibold">Sensor ID: ${Math.random().toString(36).substr(2, 6).toUpperCase()}</div>
                         <div class="text-xs">Road: ${road.name}</div>
                         <div class="text-xs">Distance: ${(i+1)*100}m</div>
                     `);
+                    
+                    trafficLayersGroup.addLayer(marker);
                 }
             });
+            
+            trafficLayersGroup.addTo(map);
         }
 
         // Generate Mock Cameras
@@ -714,14 +736,24 @@
             panel.classList.toggle('hidden');
         }
 
+        let trafficLayersGroup = L.layerGroup();
+
         function toggleTrafficLayer() {
             trafficLayer = !trafficLayer;
             const indicator = document.getElementById('trafficStatusIndicator');
             if (trafficLayer) {
                 indicator.classList.remove('hidden');
-                map.addLayer(map);
+                indicator.style.display = 'flex';
+                // Re-add traffic sensors if they were removed
+                if (!map.hasLayer(trafficLayersGroup)) {
+                    map.addLayer(trafficLayersGroup);
+                }
             } else {
                 indicator.classList.add('hidden');
+                indicator.style.display = 'none';
+                if (map.hasLayer(trafficLayersGroup)) {
+                    map.removeLayer(trafficLayersGroup);
+                }
             }
         }
 
@@ -814,9 +846,14 @@
 
         // Close modals on outside click
         window.onclick = function(event) {
-            const modal = document.getElementById('upgradeModal');
-            if (event.target === modal) {
+            const upgradeModal = document.getElementById('upgradeModal');
+            const replayModal = document.getElementById('replayModal');
+            
+            if (event.target === upgradeModal) {
                 closeUpgradeModal();
+            }
+            if (event.target === replayModal) {
+                closeReplayModal();
             }
         }
     </script>
